@@ -2,11 +2,15 @@
 using System.Drawing;
 using System.Drawing.Imaging;
 using OpenAI.Chat;
-using Xfinium.Pdf;
-using Xfinium.Pdf.Rendering;
+using iText.Kernel.Pdf.Canvas.Parser;
+using iText.Kernel.Pdf.Canvas.Parser.Listener;
+using iText.Kernel.Geom;
+using PDFtoImage;
+using SkiaSharp;
 using PdfDocument = iText.Kernel.Pdf.PdfDocument;
 using PdfReader = iText.Kernel.Pdf.PdfReader;
 using PdfWriter = iText.Kernel.Pdf.PdfWriter;
+using Rectangle = System.Drawing.Rectangle;
 
 namespace Microsoft_.NET_OCR_CV_Accelerate_Efficiency_and_Innovation.Helpers
 {
@@ -66,47 +70,53 @@ namespace Microsoft_.NET_OCR_CV_Accelerate_Efficiency_and_Innovation.Helpers
         public static Bitmap ConvertPdfToBitmapOptimized(byte[] input, int dpi)
         {
             using var ms = new MemoryStream(input);
-            var doc = new PdfFixedDocument(ms);
+            
+            // Convert PDF pages to SkiaSharp images using PDFtoImage
+            var skImages = PDFtoImage.Conversion.ToImages(ms, options: new(Dpi: dpi)).ToList();
+            
+            if (skImages.Count == 0)
+                throw new InvalidOperationException("Could not convert PDF to images");
 
             int totalHeight = 0;
             int maxWidth = 0;
-
             var pageDimensions = new List<(int Width, int Height)>();
 
-            foreach (var page in doc.Pages)
+            // Calculate total dimensions
+            foreach (var skImage in skImages)
             {
-                double pageWidthInInches = page.Width / 72.0;
-                double pageHeightInInches = page.Height / 72.0;
-
-                int pageWidthInPixels = (int)(pageWidthInInches * dpi);
-                int pageHeightInPixels = (int)(pageHeightInInches * dpi);
-
-                pageDimensions.Add((pageWidthInPixels, pageHeightInPixels));
-
-                maxWidth = Math.Max(maxWidth, pageWidthInPixels);
-                totalHeight += pageHeightInPixels;
+                pageDimensions.Add((skImage.Width, skImage.Height));
+                maxWidth = Math.Max(maxWidth, skImage.Width);
+                totalHeight += skImage.Height;
             }
 
-            var bitmapToDrawOn = new Bitmap(maxWidth, totalHeight);
-            using var g = Graphics.FromImage(bitmapToDrawOn);
+            // Create the final bitmap
+            var bitmapToDrawOn = new Bitmap(maxWidth, totalHeight, PixelFormat.Format24bppRgb);
+            using var graphics = Graphics.FromImage(bitmapToDrawOn);
+            graphics.Clear(Color.White);
 
             int heightPosition = 0;
 
-            for (int i = 0; i < doc.Pages.Count; i++)
+            // Combine all pages into one bitmap
+            for (int i = 0; i < skImages.Count; i++)
             {
-                var page = doc.Pages[i];
+                var skImage = skImages[i];
                 var (pageWidth, pageHeight) = pageDimensions[i];
 
-                using var result = new MemoryStream();
-                var renderer = new PdfPageRenderer(page);
+                // Convert SkiaSharp image to System.Drawing.Bitmap
+                using var skData = skImage.Encode(SKEncodedImageFormat.Png, 100);
+                using var skStream = new MemoryStream(skData.ToArray());
+                using var pageBitmap = new Bitmap(skStream);
 
-                renderer.ConvertPageToImage(dpi, result, PdfPageImageFormat.Png);
-                result.Position = 0;
-
-                using var sourceBitmap = new Bitmap(result);
-                g.DrawImage(sourceBitmap, 0, heightPosition, pageWidth, pageHeight);
+                // Draw the page bitmap to the combined bitmap
+                graphics.DrawImage(pageBitmap, 0, heightPosition, pageWidth, pageHeight);
 
                 heightPosition += pageHeight;
+            }
+
+            // Dispose SkiaSharp images
+            foreach (var skImage in skImages)
+            {
+                skImage.Dispose();
             }
 
             return bitmapToDrawOn;
