@@ -71,10 +71,11 @@ namespace Microsoft_.NET_OCR_CV_Accelerate_Efficiency_and_Innovation.Helpers
         {
             using var ms = new MemoryStream(input);
             
-            // Convert PDF pages to SkiaSharp images using PDFtoImage
-            var skImages = PDFtoImage.Conversion.ToImages(ms, options: new(Dpi: dpi)).ToList();
+            // Convert PDF to images using PDFtoImage v5.0
+            var images = Conversion.ToImages(ms, options: new(Dpi: dpi));
+            var imageList = images.ToList();
             
-            if (skImages.Count == 0)
+            if (imageList.Count == 0)
                 throw new InvalidOperationException("Could not convert PDF to images");
 
             int totalHeight = 0;
@@ -82,11 +83,11 @@ namespace Microsoft_.NET_OCR_CV_Accelerate_Efficiency_and_Innovation.Helpers
             var pageDimensions = new List<(int Width, int Height)>();
 
             // Calculate total dimensions
-            foreach (var skImage in skImages)
+            foreach (var image in imageList)
             {
-                pageDimensions.Add((skImage.Width, skImage.Height));
-                maxWidth = Math.Max(maxWidth, skImage.Width);
-                totalHeight += skImage.Height;
+                pageDimensions.Add((image.Width, image.Height));
+                maxWidth = Math.Max(maxWidth, image.Width);
+                totalHeight += image.Height;
             }
 
             // Create the final bitmap
@@ -97,15 +98,15 @@ namespace Microsoft_.NET_OCR_CV_Accelerate_Efficiency_and_Innovation.Helpers
             int heightPosition = 0;
 
             // Combine all pages into one bitmap
-            for (int i = 0; i < skImages.Count; i++)
+            for (int i = 0; i < imageList.Count; i++)
             {
-                var skImage = skImages[i];
+                var image = imageList[i];
                 var (pageWidth, pageHeight) = pageDimensions[i];
 
                 // Convert SkiaSharp image to System.Drawing.Bitmap
-                using var skData = skImage.Encode(SKEncodedImageFormat.Png, 100);
-                using var skStream = new MemoryStream(skData.ToArray());
-                using var pageBitmap = new Bitmap(skStream);
+                using var data = image.Encode(SKEncodedImageFormat.Png, 100);
+                using var stream = new MemoryStream(data.ToArray());
+                using var pageBitmap = new Bitmap(stream);
 
                 // Draw the page bitmap to the combined bitmap
                 graphics.DrawImage(pageBitmap, 0, heightPosition, pageWidth, pageHeight);
@@ -113,10 +114,10 @@ namespace Microsoft_.NET_OCR_CV_Accelerate_Efficiency_and_Innovation.Helpers
                 heightPosition += pageHeight;
             }
 
-            // Dispose SkiaSharp images
-            foreach (var skImage in skImages)
+            // Dispose images
+            foreach (var image in imageList)
             {
-                skImage.Dispose();
+                image.Dispose();
             }
 
             return bitmapToDrawOn;

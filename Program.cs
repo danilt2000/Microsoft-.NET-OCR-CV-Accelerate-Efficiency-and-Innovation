@@ -1,4 +1,7 @@
 
+using Microsoft_.NET_OCR_CV_Accelerate_Efficiency_and_Innovation.Models;
+using Microsoft_.NET_OCR_CV_Accelerate_Efficiency_and_Innovation.Services;
+
 namespace Microsoft_.NET_OCR_CV_Accelerate_Efficiency_and_Innovation
 {
     public class Program
@@ -11,6 +14,13 @@ namespace Microsoft_.NET_OCR_CV_Accelerate_Efficiency_and_Innovation
 
             builder.Services.AddControllers();
             // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
+
+            builder.Services.Configure<DocumentIntelligenceOptions>(
+                builder.Configuration.GetSection("Azure:DocumentIntelligence"));
+
+            builder.Services.AddSingleton<DocumentIntelligenceService>();
+            builder.Services.AddSingleton<ChatGptService>();
+
             builder.Services.AddEndpointsApiExplorer();
             builder.Services.AddSwaggerGen();
 
